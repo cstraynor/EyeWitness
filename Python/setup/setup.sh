@@ -78,8 +78,29 @@ install_deps() {
 
     echo
     echo "[*] Installing Python dependencies..."
-    pip3 install --upgrade pip
-    python3 -m pip install -r requirements.txt
+    if [[ -z "$VIRTUAL_ENV" ]]; then
+        echo "[*] No virtual environment detected. Installing globally."
+        pip3 install --upgrade pip
+        python3 -m pip install -r requirements.txt 2>&1 | tee /tmp/pip_output.log
+    else
+        echo "[*] Virtual environment detected at $VIRTUAL_ENV"
+        "$VIRTUAL_ENV/bin/pip" install --upgrade pip
+        "$VIRTUAL_ENV/bin/python" -m pip install -r requirements.txt 2>&1 | tee /tmp/pip_output.log
+    fi
+
+    # Check for "error: externally-managed-environment"
+    if grep -q "error: externally-managed-environment" /tmp/pip_output.log; then
+        echo
+        echo "[-] Error: Detected 'externally-managed-environment' error."
+        echo "[-] If a Python virtual environment is currently active for your user, please run this script with 'sudo -E' to preserve the virtual environment context." 
+        echo "[-] This can help avoid the error issue."
+        echo
+        rm -f /tmp/pip_output.log
+        exit 1
+    fi
+
+    # Clean up the log file
+    rm -f /tmp/pip_output.log
 }
 
 # Make sure we're in the setup directory
@@ -95,6 +116,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 else
     echo "[+] Running as root."
+    echo "[*] If a Python virtual environment is currently active for your user, please run this script with 'sudo -E' to preserve the virtual environment context."
 fi
 
 # Get some system information
